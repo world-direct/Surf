@@ -63,9 +63,9 @@ jobs:
       stage: release
       php: 7.2
       before_script:
-        - composer global require kherge/box
+        - composer global require kherge/box:^2.7
         - composer install --no-ansi --no-interaction --no-dev --no-progress --classmap-authoritative
-      script: box build
+      script: $HOME/.composer/vendor/bin/box build
       deploy:
         provider: releases
         api_key:
