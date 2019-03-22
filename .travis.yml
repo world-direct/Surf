@@ -32,6 +32,9 @@ jobs:
       env: PHP Lint
       before_install: skip
       install: skip
+      branches:
+        except:
+          - /^latest/
       script: find . -name \*.php ! -path "./vendor/*" | parallel --gnu php -d display_errors=stderr -l {} > /dev/null \;
     - <<: *lint
       php: 7.1
@@ -46,6 +49,9 @@ jobs:
       env: PHPUnit
       before_script: composer install
       script: vendor/bin/phpunit Tests/Unit/
+      branches:
+        except:
+          - /^latest/
     - <<: *phpunit
       php: 7.1
     - <<: *phpunit
@@ -59,9 +65,13 @@ jobs:
       before_script:
         - composer install
         - composer update
+
     - &release
       stage: release
       php: 7.2
+      branches:
+        except:
+          - /^latest/
       before_script:
         - composer global require kherge/box:^2.7
         - composer install --no-ansi --no-interaction --no-dev --no-progress --classmap-authoritative
@@ -69,16 +79,34 @@ jobs:
       script:
         - $HOME/.composer/vendor/bin/box build
         - php bin/surf.phar --version
-      deploy:
+      deploy: &github
         provider: releases
         api_key:
           secure: aSVx7EqVUkp+RNH4suLAtN5uXW/UpkmWD1zUlzf5gjiikF0QkombwElc74T2vD1vyFDOLkL/Mm2jRPbpuZmP6ZU8Tb8rlCYAo/5015362dloJbzZwY82VxEpTBjZ3gEcJdpAKXLdaZPiILnCTkQ46uSk8uKLVIhf4b4/FnPlB4z6OjVM32ZE/F0LZxZ+B5K3wvky5PuQiUlT8EDkAbZwNi694gwA/x9HVF77Z6wopkYxXzwno0AxLGBYShtwBQ1tts3IBqNxDsv8MuYtFmVHAUkDZHiQcsThpBsPOmybavir5UlfHbnqlnHlTUIW43+aQYCsvXwVYgva9Gmc9tOHaGn2ed9QyANguXAMmFQSG+NvWcAcVyBJZ7Y5s/WGkxLMGsdj2xiS+1p0h5lDjcckdubuY/CD0+prmNQDPlvnXAn/XtYnN7UvLmhMZZ0S1oMKuCwQv8DeeJPCi/1Dn3B8YJpD3GkJdLJxY14HcVN+ztF/V+J621vqYaUfhN9bRrOqwgYZOmUDVjj4WAQ0VpoFJzCjH2IHz4+yqzHO5GrPO/Ey2+peq2jt1VavDcfc0Cdqe3FLfRQDmJexDjjR1SaR6A4NhoPBtWjOG0EMDrJpvYm6lIJ5MkmZ2st5TvkZgXtkXAjKTvCF9XIrophaBvHZFpaFnb0HhYsH7HyWQ43X8uA=
         file: bin/surf.phar
         skip_cleanup: true
+    - <<: *release
+      before_deploy:
+        # Set up git user name and tag this commit
+        - git config --local user.name "t3easy"
+        - git config --local user.email "3628035+t3easy@users.noreply.github.com"
+        - git tag -a -m -f latest
+      deploy:
+        <<: *github
+        name: master
+        prerelease: true
+        draft: true
+        overwrite: true
+        on:
+          repo: TYPO3/Surf
+          branch: master
+    - <<: *release
+      deploy:
+        <<: *github
         draft: true
         on:
           repo: TYPO3/Surf
-          branch: 'master'
+          tags: true
 
   allow_failures:
     - php: 7.2
