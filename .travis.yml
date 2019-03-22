@@ -85,6 +85,11 @@ jobs:
           secure: aSVx7EqVUkp+RNH4suLAtN5uXW/UpkmWD1zUlzf5gjiikF0QkombwElc74T2vD1vyFDOLkL/Mm2jRPbpuZmP6ZU8Tb8rlCYAo/5015362dloJbzZwY82VxEpTBjZ3gEcJdpAKXLdaZPiILnCTkQ46uSk8uKLVIhf4b4/FnPlB4z6OjVM32ZE/F0LZxZ+B5K3wvky5PuQiUlT8EDkAbZwNi694gwA/x9HVF77Z6wopkYxXzwno0AxLGBYShtwBQ1tts3IBqNxDsv8MuYtFmVHAUkDZHiQcsThpBsPOmybavir5UlfHbnqlnHlTUIW43+aQYCsvXwVYgva9Gmc9tOHaGn2ed9QyANguXAMmFQSG+NvWcAcVyBJZ7Y5s/WGkxLMGsdj2xiS+1p0h5lDjcckdubuY/CD0+prmNQDPlvnXAn/XtYnN7UvLmhMZZ0S1oMKuCwQv8DeeJPCi/1Dn3B8YJpD3GkJdLJxY14HcVN+ztF/V+J621vqYaUfhN9bRrOqwgYZOmUDVjj4WAQ0VpoFJzCjH2IHz4+yqzHO5GrPO/Ey2+peq2jt1VavDcfc0Cdqe3FLfRQDmJexDjjR1SaR6A4NhoPBtWjOG0EMDrJpvYm6lIJ5MkmZ2st5TvkZgXtkXAjKTvCF9XIrophaBvHZFpaFnb0HhYsH7HyWQ43X8uA=
         file: bin/surf.phar
         skip_cleanup: true
+        draft: true
+        on:
+          repo: TYPO3/Surf
+          tags: true
+
     - <<: *release
       before_deploy:
         # Set up git user name and tag this commit
@@ -100,13 +105,6 @@ jobs:
         on:
           repo: TYPO3/Surf
           branch: master
-    - <<: *release
-      deploy:
-        <<: *github
-        draft: true
-        on:
-          repo: TYPO3/Surf
-          tags: true
 
   allow_failures:
     - php: 7.2
