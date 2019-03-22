@@ -197,7 +197,11 @@ Applications:
       context => <success>Production</success>
       scriptFileName => <success>vendor/bin/typo3cms</success>
       webDirectory => <success>web</success>
+      symlinkDataFolders =>
+        <success>fileadmin</success>
+        <success>uploads</success>
       rsyncExcludes =>
+        <success>.ddev</success>
         <success>.git</success>
         <success>web/fileadmin</success>
         <success>web/uploads</success>
@@ -270,7 +274,7 @@ Applications:
     Options: 
       packageMethod => <success>git</success>
       transferMethod => <success>rsync</success>
-      updateMethod => <success>composer</success>
+      updateMethod => <success>NULL</success>
       lockDeployment => <success>1</success>
       TYPO3\Surf\Task\Generic\CreateDirectoriesTask[directories] =>
       TYPO3\Surf\Task\Generic\CreateSymlinksTask[symlinks] =>
@@ -297,8 +301,6 @@ Applications:
         after:
           <success>TYPO3\Surf\Task\Generic\CreateSymlinksTask</success> (for application Neos)
       update:
-        tasks:
-          <success>TYPO3\Surf\Task\Composer\InstallTask</success> (for application Neos)
         after:
           <success>TYPO3\Surf\Task\Neos\Flow\SymlinkDataTask</success> (for application Neos)
           <success>TYPO3\Surf\Task\Neos\Flow\SymlinkConfigurationTask</success> (for application Neos)
