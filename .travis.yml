@@ -77,7 +77,7 @@ jobs:
         - composer install --no-ansi --no-interaction --no-dev --no-progress --classmap-authoritative
         - mkdir bin
       script:
-        - $HOME/.composer/vendor/bin/box build
+        - php -d phar.readonly=0 $HOME/.composer/vendor/bin/box build
         - php bin/surf.phar --version
       deploy: &github
         provider: releases
