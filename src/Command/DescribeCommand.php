@@ -14,6 +14,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Yaml\Yaml;
 use TYPO3\Surf\Domain\Model\Application;
 use TYPO3\Surf\Domain\Model\FailedDeployment;
 use TYPO3\Surf\Domain\Model\SimpleWorkflow;
@@ -37,6 +38,11 @@ class DescribeCommand extends Command implements FactoryAwareInterface
      * @var OutputInterface
      */
     protected $output;
+
+    /**
+     * @var array
+     */
+    protected $description = [];
 
     /**
      * Configure
@@ -63,6 +69,7 @@ class DescribeCommand extends Command implements FactoryAwareInterface
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @throws \TYPO3\Surf\Exception\InvalidConfigurationException
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
@@ -74,67 +81,55 @@ class DescribeCommand extends Command implements FactoryAwareInterface
         $workflow = $deployment->getWorkflow();
 
         if (! $deployment instanceof FailedDeployment) {
-            $output->writeln('<success>Deployment ' . $deployment->getName() . '</success>');
-            $output->writeln('');
-            $output->writeln('Workflow: <success>' . $workflow->getName() . '</success>');
+            $this->description['deployment']['name'] = $deployment->getName();
+            $this->description['workflow']['name'] = $workflow->getName();
 
             if ($workflow instanceof SimpleWorkflow) {
-                $value = $workflow->isEnableRollback() ? 'true' : 'false';
-                $output->writeln('    <comment>Rollback enabled:</comment> <info>' . $value . '</info>');
+                $this->description['workflow']['rollback_enabled'] = $workflow->isEnableRollback();
             }
 
-            $output->writeln('');
+            $this->addNodesToDescription($deployment->getNodes());
 
-            $this->printNodes($deployment->getNodes());
+            $this->addApplicationsToDescription($deployment->getApplications(), $deployment->getWorkflow());
 
-            $this->printApplications($deployment->getApplications(), $deployment->getWorkflow());
+            $output->write(Yaml::dump($this->description, 10, 2));
         }
     }
 
     /**
      * @param array $nodes
      */
-    protected function printNodes($nodes)
+    protected function addNodesToDescription($nodes)
     {
-        $this->output->writeln('Nodes:' . PHP_EOL);
         foreach ($nodes as $node) {
-            $this->output->writeln('  <success>' . $node->getName() . '</success> <info>(' . $node->getHostname() . ')</info>');
+            $this->description['nodes'][$node->getName()]['hostname'] = $node->getHostname();
         }
     }
 
     /**
-     * Prints configuration for each defined application
+     * Get configuration for each defined application
      *
      * @param array $applications
      * @param Workflow $workflow
+     * @throws \TYPO3\Surf\Exception\InvalidConfigurationException
      */
-    protected function printApplications(array $applications, Workflow $workflow)
+    protected function addApplicationsToDescription(array $applications, Workflow $workflow)
     {
-        $this->output->writeln(PHP_EOL . 'Applications:' . PHP_EOL);
+        /** @var Application $application */
         foreach ($applications as $application) {
-            $this->output->writeln('  <success>' . $application->getName() . ':</success>');
-            $this->output->writeln('    <comment>Deployment path</comment>: <success>' . $application->getDeploymentPath() . '</success>');
-            $this->output->writeln('    <comment>Options</comment>: ');
-            foreach ($application->getOptions() as $key => $value) {
-                if (is_array($value)) {
-                    $this->output->writeln('      ' . $key . ' =>');
-                    foreach ($value as $itemKey => $itemValue) {
-                        $itemOutput = is_string($itemKey) ? sprintf('%s => %s', $itemKey, $itemValue) : $itemValue;
-                        $this->output->writeln(sprintf('        <success>%s</success>', $itemOutput));
-                    }
-                } else {
-                    $printableValue = is_scalar($value) ? $value : gettype($value);
-                    $this->output->writeln('      ' . $key . ' => <success>' . $printableValue . '</success>');
-                }
-            }
-            $this->output->writeln('    <comment>Nodes</comment>: <success>' . implode(
-                ', ',
-                    $application->getNodes()
-            ) . '</success>');
+            $this->description['applications'][$application->getName()] = [
+                'type' => get_class($application),
+                'deployment_path' => $application->getDeploymentPath(),
+                'options' => $application->getOptions(),
+                'nodes' => $application->getNodes(),
+            ];
 
             if ($workflow instanceof SimpleWorkflow) {
-                $this->output->writeln('    <comment>Detailed workflow</comment>: ');
-                $this->printStages($application, $workflow->getStages(), $workflow->getTasks());
+                $this->description['applications'][$application->getName()]['workflow'] = $this->getApplicationWorkflow(
+                    $application->getName(),
+                    $workflow->getStages(),
+                    $workflow->getTasks()
+                );
             }
         }
     }
@@ -142,33 +137,31 @@ class DescribeCommand extends Command implements FactoryAwareInterface
     /**
      * Prints stages and contained tasks for given application
      *
-     * @param Application $application
+     * @param string $applicationName
      * @param array $stages
      * @param array $tasks
+     * @return array
      */
-    protected function printStages(Application $application, array $stages, array $tasks)
+    protected function getApplicationWorkflow($applicationName, array $stages, array $tasks)
     {
-        foreach ($stages as $stage) {
-            $this->output->writeln('      <comment>' . $stage . ':</comment>');
-            foreach (['before', 'tasks', 'after'] as $stageStep) {
-                $output = '';
-                foreach (['_', $application->getName()] as $applicationName) {
-                    $label = $applicationName === '_' ? 'for all applications' : 'for application ' . $applicationName;
-                    if (isset($tasks['stage'][$applicationName][$stage][$stageStep])) {
-                        foreach ($tasks['stage'][$applicationName][$stage][$stageStep] as $task) {
-                            $this->printBeforeAfterTasks($tasks, $applicationName, $task, 'before', $output);
-                            $output .= '          <success>' . $task . '</success> <info>(' . $label . ')</info>' . PHP_EOL;
-                            $this->printBeforeAfterTasks($tasks, $applicationName, $task, 'after', $output);
-                        }
-                    }
-                }
+        $workflow = array_fill_keys(array_values($stages), []);
 
-                if (strlen($output) > 0) {
-                    $this->output->writeln('        <info>' . $stageStep . ':</info>');
+        foreach ($stages as $stage) {
+            foreach (['before', 'tasks', 'after'] as $stageStep) {
+                $tasksInStage = array_merge(
+                    (array)$tasks['stage'][$applicationName][$stage][$stageStep],
+                    (array)$tasks['stage']['_'][$stage][$stageStep]
+                );
+                foreach ($tasksInStage as $order => $taskInStage) {
+                    $workflow[$stage][$stageStep] = array_merge(
+                        $this->getBeforeAfterTasks($tasks, $applicationName, $taskInStage, 'before'),
+                        (array) $taskInStage,
+                        $this->getBeforeAfterTasks($tasks, $applicationName, $taskInStage, 'after')
+                    );
                 }
-                $this->output->write($output);
             }
         }
+        return $workflow;
     }
 
     /**
@@ -178,16 +171,19 @@ class DescribeCommand extends Command implements FactoryAwareInterface
      * @param string $applicationName
      * @param string $task
      * @param string $step
-     * @param string $output
+     * @return array
      */
-    private function printBeforeAfterTasks(array $tasks, $applicationName, $task, $step, &$output)
+    private function getBeforeAfterTasks(array $tasks, $applicationName, $task, $step)
     {
-        $label = $applicationName === '_' ? 'for all applications' : 'for application ' . $applicationName;
-        if (isset($tasks[$step][$applicationName][$task])) {
-            // 'Task "' . $beforeTask . '" before "' . $task
-            foreach ($tasks[$step][$applicationName][$task] as $beforeAfterTask) {
-                $output .= '          <success>Task ' . $beforeAfterTask . ' ' . $step . ' ' . $task . '</success> <info>(' . $label . ')</info>' . PHP_EOL;
+        $beforeAfterTasks = [];
+        $applicationNames = [$applicationName, '_'];
+        foreach ($applicationNames as $applicationName) {
+            if (isset($tasks[$step][$applicationName][$task])) {
+                foreach ($tasks[$step][$applicationName][$task] as $beforeAfterTask) {
+                    $beforeAfterTasks[] = $beforeAfterTask;
+                }
             }
         }
+        return $beforeAfterTasks;
     }
 }
