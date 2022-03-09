@@ -75,7 +75,7 @@ class FlushCachesTask extends AbstractCliTask
      */
     protected function resolveOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefault('arguments', ['--force'])
+        $resolver->setDefault('arguments', [])
             ->setAllowedTypes('arguments', ['array', 'string'])
             ->setNormalizer('arguments', function (Options $options, $value) {
                 return (array)$value;
